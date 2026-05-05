@@ -1,0 +1,73 @@
+Metadata-Version: 2.4
+Name: cyberaudit
+Version: 0.1.0
+Summary: Outil Python d'audit défensif pour cartographie reseau, audit Windows et rapports de vulnerabilites.
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: Flask<4.0,>=3.0
+Requires-Dist: requests<3.0,>=2.32
+
+# CyberAudit
+
+CyberAudit est un prototype d'outil de cybersécurité défensif, entièrement en Python, destiné aux audits **autorisés** de réseaux internes et de postes Windows.
+
+Fonctionnalités incluses :
+
+- découverte des hôtes sur un sous-réseau
+- détection de ports ouverts et services exposés
+- cartographie réseau basique
+- audit local Windows (mises à jour, configuration de sécurité, inventaire logiciel)
+- corrélation CVE heuristique via l'API NVD 2.0
+- génération de rapports HTML et JSON
+- interface web légère en Flask
+
+## Important
+
+Cet outil doit être utilisé uniquement sur des systèmes et réseaux dont vous avez l'autorisation d'audit.
+
+Par défaut, le scan réseau refuse les cibles hors plages privées RFC1918, sauf option explicite.
+
+## Installation
+
+```powershell
+cd "C:\prog\projet cyber"
+python -m pip install -e .
+```
+
+## Usage CLI
+
+Audit local Windows uniquement :
+
+```powershell
+cyberaudit scan --skip-network --audit-localhost --output reports
+```
+
+Scan réseau + audit local :
+
+```powershell
+cyberaudit scan --network 192.168.1.0/24 --ports 21,22,80,135,139,443,445,3389,8080 --audit-localhost --output reports
+```
+
+Lancer l'interface web :
+
+```powershell
+cyberaudit serve --host 127.0.0.1 --port 8080 --output reports
+```
+
+Puis ouvrir [http://127.0.0.1:8080](http://127.0.0.1:8080).
+
+## Architecture
+
+- `src/cyberaudit/network.py` : découverte réseau, scan de ports, bannières simples
+- `src/cyberaudit/windows_audit.py` : audit Windows local
+- `src/cyberaudit/vuln.py` : corrélation CVE via NVD
+- `src/cyberaudit/orchestrator.py` : orchestration complète
+- `src/cyberaudit/reporting.py` : rendu JSON/HTML
+- `src/cyberaudit/webapp.py` : interface Flask
+
+## Limites de cette première version
+
+- la cartographie réseau reste logique et non physique
+- l'audit détaillé des postes distants Windows n'est pas encore agentless
+- la corrélation CVE logicielle est heuristique : elle aide au tri mais ne remplace pas une validation humaine
+- certains contrôles Windows demandent des privilèges élevés pour être complets

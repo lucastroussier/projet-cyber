@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cyberaudit"
+version = "0.1.0"
+description = "Outil Python d'audit défensif pour cartographie reseau, audit Windows et rapports de vulnerabilites."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "Flask>=3.0,<4.0",
+  "requests>=2.32,<3.0",
+]
+
+[project.optional-dependencies]
+build = [
+  "pyinstaller>=6.0,<7.0",
+]
+
+[project.scripts]
+cyberaudit = "cyberaudit.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+cyberaudit = ["templates/*.html", "static/*.css"]

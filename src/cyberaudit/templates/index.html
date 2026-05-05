@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CyberAudit</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    testtttttttttttttttttttttttttttttttttttttttttttttttttttttttt
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">CyberAudit</p>
+          <h1>Cartographie reseau et audit Windows</h1>
+          <p class="lead">Prototype Python pour decouverte rapide d'hotes, scan multi-services, fingerprinting NAS et analyse defensive de vulnerabilites.</p>
+        </div>
+      </section>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <section class="messages">
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          </section>
+        {% endif %}
+      {% endwith %}
+
+      {% if last_generated_report %}
+        <section class="messages">
+          <div class="flash success report-ready">
+            <span>Nouveau rapport genere.</span>
+            <a href="{{ url_for('view_report', filename=last_generated_report) }}">Ouvrir le rapport</a>
+          </div>
+        </section>
+      {% endif %}
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>Lancer une analyse</h2>
+            <p>Indiquez une cible, puis lancez avec les reglages recommandes.</p>
+          </div>
+        </div>
+        <form method="post" action="{{ url_for('run_scan') }}" class="scan-form">
+          <div class="launch-row">
+            <label>
+              Cible a analyser
+              <input type="text" name="network" placeholder="Auto ou 192.168.1.0/24">
+            </label>
+            <button type="submit">Lancer l'analyse</button>
+          </div>
+
+          <details class="advanced">
+            <summary>Plus d'options</summary>
+            <div class="advanced-grid">
+              <label>
+                Profil
+                <select name="scan_profile">
+                  {% for profile in scan_profiles %}
+                    <option value="{{ profile }}" {% if profile == 'standard' %}selected{% endif %}>{{ profile }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label>
+                Dossier des rapports
+                <input type="text" name="output_dir" value="reports">
+              </label>
+              <label>
+                Ports TCP
+                <input type="text" name="ports" value="{{ default_ports }}">
+              </label>
+              <label>
+                Ports UDP
+                <input type="text" name="udp_discovery_ports" value="{{ default_udp_ports }}">
+              </label>
+              <label>
+                Timeout TCP
+                <input type="number" step="0.05" min="0.05" name="timeout" value="0.35">
+              </label>
+              <label>
+                Timeout UDP
+                <input type="number" step="0.05" min="0.05" name="udp_timeout" value="0.4">
+              </label>
+              <label>
+                Workers
+                <input type="number" min="1" max="512" name="workers" value="192">
+              </label>
+              <label>
+                SNMP
+                <input type="text" name="snmp_communities" value="public">
+              </label>
+              <label>
+                Cle API NVD
+                <input type="password" name="nvd_api_key" placeholder="Optionnel">
+              </label>
+              <label class="checkbox compact">
+                <input type="checkbox" name="audit_localhost" checked>
+                <span>Inclure ce poste Windows</span>
+              </label>
+              <label class="checkbox compact">
+                <input type="checkbox" name="skip_network">
+                <span>Audit local uniquement</span>
+              </label>
+              <label class="checkbox compact">
+                <input type="checkbox" name="disable_udp_discovery">
+                <span>Desactiver UDP</span>
+              </label>
+              <label class="checkbox compact">
+                <input type="checkbox" name="allow_non_private_targets">
+                <span>Cibles non privees</span>
+              </label>
+            </div>
+          </details>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Derniers rapports</h2>
+        {% if reports %}
+          <ul class="report-list">
+            {% for report in reports %}
+              <li><a href="{{ url_for('view_report', filename=report.name) }}">{{ report.name }}</a></li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p>Aucun rapport pour le moment.</p>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>

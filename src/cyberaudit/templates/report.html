@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rapport CyberAudit</title>
+    <style>
+      :root {
+        --bg: #f5f1e8;
+        --ink: #1f2933;
+        --panel: #fffdf8;
+        --line: #dfd4c3;
+        --critical: #7a1026;
+        --high: #b34511;
+        --medium: #8d6a10;
+        --low: #2b6a8f;
+      }
+      body { background: linear-gradient(180deg, #f4efe3, #ede6d7); color: var(--ink); font-family: "Segoe UI", sans-serif; margin: 0; }
+      main { max-width: 1200px; margin: 0 auto; padding: 32px 20px 64px; }
+      .hero, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 24px; box-shadow: 0 10px 30px rgba(90, 64, 35, 0.08); margin-bottom: 20px; }
+      h1, h2, h3 { margin: 0 0 12px; }
+      .hero-grid, .summary, .kv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+      .metric, .kv { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: #fff; }
+      .metric strong { display: block; font-size: 1.6rem; }
+      .kv span { display: block; font-size: 0.85rem; color: #5a6974; }
+      .kv strong { display: block; margin-top: 6px; font-size: 1rem; }
+      .finding { border-top: 1px solid var(--line); padding: 16px 0; }
+      .finding:first-child, .host:first-child { border-top: none; padding-top: 0; }
+      .sev { display: inline-block; padding: 4px 10px; border-radius: 999px; font-weight: 700; font-size: 0.8rem; }
+      .sev-Critical { background: #f7d9df; color: var(--critical); }
+      .sev-High { background: #fde4d6; color: var(--high); }
+      .sev-Medium { background: #fbf0cf; color: var(--medium); }
+      .sev-Low { background: #dceff9; color: var(--low); }
+      .sev-Info { background: #e7ecef; color: #445; }
+      .host { border-top: 1px solid var(--line); padding: 14px 0; }
+      code { background: #efe7d9; padding: 2px 6px; border-radius: 6px; }
+      ul { margin-top: 8px; }
+      .small, .empty { color: #5a6974; font-size: 0.92rem; }
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; background: #fff; }
+      th, td { border-bottom: 1px solid var(--line); text-align: left; padding: 10px 12px; vertical-align: top; }
+      th { background: #f6efe3; }
+      details { margin-top: 10px; }
+      pre { white-space: pre-wrap; word-break: break-word; }
+    </style>
+  </head>
+  <body>
+    <main>
+      {% set collector = report.metadata.get('collector', {}) %}
+      <section class="hero">
+        <h1>Rapport CyberAudit</h1>
+        <p class="small">Genere le {{ report.generated_at }}</p>
+        <div class="hero-grid">
+          <div class="metric"><span>Score global</span><strong>{{ score }}/100</strong></div>
+          <div class="metric"><span>Hotes detectes</span><strong>{{ report.hosts|length }}</strong></div>
+          <div class="metric"><span>Logiciels inventories</span><strong>{{ report.software_inventory|length }}</strong></div>
+          <div class="metric"><span>Constats</span><strong>{{ findings|length }}</strong></div>
+          {% if collector.get('mode') == 'multi_agent' %}
+            <div class="metric"><span>Agents recus</span><strong>{{ collector.get('agent_count', 0) }}</strong></div>
+            <div class="metric"><span>Type analyse</span><strong>{{ collector.get('analysis_type', 'N/A') }}</strong></div>
+          {% endif %}
+        </div>
+        {% if not findings %}
+          <p class="small">Aucun probleme n'a ete detecte par les controles actuels. Les donnees collectees sont affichees plus bas.</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>Synthese</h2>
+        <div class="summary">
+          {% for key, value in summary.items() %}
+            <div class="metric">
+              <span>{{ labels.get(key, key) }}</span>
+              <strong>{{ value }}</strong>
+            </div>
+          {% endfor %}
+        </div>
+        <p class="small">Perimetre reseau : <code>{{ report.network or 'audit local uniquement' }}</code></p>
+      </section>
+
+      {% if collector.get('agents') %}
+        <section class="panel">
+          <h2>Postes agents consolides</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Type analyse</th>
+                  <th>Reception</th>
+                  <th>Hotes</th>
+                  <th>Constats</th>
+                  <th>Logiciels</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for agent in collector.get('agents', []) %}
+                  <tr>
+                    <td>{{ agent.get('id', 'N/A') }}</td>
+                    <td>{{ agent.get('analysis_type', 'standard') }}</td>
+                    <td>{{ agent.get('received_at') or agent.get('sent_at') or 'N/A' }}</td>
+                    <td>{{ agent.get('hosts', 0) }}</td>
+                    <td>{{ agent.get('findings', 0) }}</td>
+                    <td>{{ agent.get('software', 0) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      {% endif %}
+
+      {% set agent_audits = report.metadata.get('agent_audits', []) %}
+      {% if agent_audits %}
+        <section class="panel">
+          <h2>Synthese Windows agents</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Poste</th>
+                  <th>Systeme</th>
+                  <th>Build</th>
+                  <th>Defender temps reel</th>
+                  <th>RDP</th>
+                  <th>UAC</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in agent_audits %}
+                  {% set audit = item.get('localhost_audit', {}) %}
+                  {% set profile = audit.get('system_profile', {}) %}
+                  {% set os_data = profile.get('os', {}) %}
+                  {% set defender_data = audit.get('defender', {}) %}
+                  {% set security_data = audit.get('security', {}) %}
+                  <tr>
+                    <td>{{ item.get('agent_id', 'N/A') }}</td>
+                    <td>{{ os_data.get('CSName', 'N/A') }}</td>
+                    <td>{{ os_data.get('Caption', 'N/A') }}</td>
+                    <td>{{ os_data.get('BuildNumber', 'N/A') }}</td>
+                    <td>{{ 'Oui' if defender_data.get('RealTimeProtectionEnabled') == true else 'Non' if defender_data.get('RealTimeProtectionEnabled') == false else 'N/A' }}</td>
+                    <td>{{ 'Oui' if security_data.get('rdpEnabled') == true else 'Non' if security_data.get('rdpEnabled') == false else 'N/A' }}</td>
+                    <td>{{ 'Oui' if security_data.get('uacEnabled') == true else 'Non' if security_data.get('uacEnabled') == false else 'N/A' }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      {% endif %}
+
+      <section class="panel">
+        <h2>Cartographie reseau</h2>
+        {% if report.hosts %}
+          {% for host in report.hosts %}
+            <div class="host">
+              <h3>{{ host.ip }}{% if host.hostname %} - {{ host.hostname }}{% endif %}</h3>
+              <p class="small">
+                Vivant: {{ 'oui' if host.is_alive else 'non' }}
+                {% if host.latency_ms %}| Latence: {{ host.latency_ms }} ms{% endif %}
+                {% if host.operating_system %}| OS: {{ host.operating_system }}{% endif %}
+                {% if host.device_type %}| Type: {{ host.device_type }}{% endif %}
+                {% if host.fingerprint %}| Empreinte: {{ host.fingerprint }}{% endif %}
+              </p>
+              {% if host.services %}
+                <ul>
+                  {% for service in host.services %}
+                    <li>
+                      <code>{{ service.port }}/{{ service.protocol }}</code> - {{ service.service }}
+                      {% if service.product %}- {{ service.product }}{% if service.version %} {{ service.version }}{% endif %}{% endif %}
+                      {% if service.vendor %} ({{ service.vendor }}){% endif %}
+                      {% if service.banner %} - {{ service.banner }}{% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p>Aucun port ouvert parmi les ports testes.</p>
+              {% endif %}
+              {% if host.notes %}
+                <ul>
+                  {% for note in host.notes %}
+                    <li>{{ note }}</li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+            </div>
+          {% endfor %}
+        {% else %}
+          <p>Aucun hote reseau scanne dans ce rapport.</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>Constats detailles</h2>
+        {% if findings %}
+          {% for finding in findings %}
+            <div class="finding">
+              <div>
+                <span class="sev sev-{{ finding.severity }}">{{ labels.get(finding.severity, finding.severity) }}</span>
+              </div>
+              <h3>{{ finding.title }}</h3>
+              <p class="small">Cible : <code>{{ finding.target }}</code> | Categorie : {{ finding.category }} | Source : {{ finding.source }}</p>
+              <p>{{ finding.description }}</p>
+              <p><strong>Recommandation :</strong> {{ finding.recommendation }}</p>
+              {% if finding.evidence %}
+                <details>
+                  <summary>Preuves</summary>
+                  <pre>{{ finding.evidence | tojson(indent=2) }}</pre>
+                </details>
+              {% endif %}
+            </div>
+          {% endfor %}
+        {% else %}
+          <p class="empty">Aucun constat n'a ete remonte.</p>
+        {% endif %}
+      </section>
+
+      {% set localhost = report.metadata.get('localhost_audit', {}) %}
+      {% set system_profile = localhost.get('system_profile', {}) %}
+      {% set os_data = system_profile.get('os', {}) %}
+      {% set hardware = system_profile.get('hardware', {}) %}
+      {% set defender = localhost.get('defender', {}) %}
+      {% set security = localhost.get('security', {}) %}
+      {% set firewall_profiles = localhost.get('firewall_profiles', []) %}
+      {% set hotfixes = localhost.get('hotfixes', []) %}
+
+      {% if localhost %}
+        <section class="panel">
+          <h2>Audit du poste local</h2>
+          <div class="kv-grid">
+            <div class="kv"><span>Nom du poste</span><strong>{{ os_data.get('CSName', 'N/A') }}</strong></div>
+            <div class="kv"><span>Systeme</span><strong>{{ os_data.get('Caption', 'N/A') }}</strong></div>
+            <div class="kv"><span>Version</span><strong>{{ os_data.get('Version', 'N/A') }}</strong></div>
+            <div class="kv"><span>Build</span><strong>{{ os_data.get('BuildNumber', 'N/A') }}</strong></div>
+            <div class="kv"><span>Fabricant</span><strong>{{ hardware.get('Manufacturer', 'N/A') }}</strong></div>
+            <div class="kv"><span>Modele</span><strong>{{ hardware.get('Model', 'N/A') }}</strong></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Etat de securite local</h2>
+          <div class="kv-grid">
+            <div class="kv"><span>Protection temps reel</span><strong>{{ 'Oui' if defender.get('RealTimeProtectionEnabled') == true else 'Non' if defender.get('RealTimeProtectionEnabled') == false else 'N/A' }}</strong></div>
+            <div class="kv"><span>Antivirus actif</span><strong>{{ 'Oui' if defender.get('AntivirusEnabled') == true else 'Non' if defender.get('AntivirusEnabled') == false else 'N/A' }}</strong></div>
+            <div class="kv"><span>Age signatures antivirus</span><strong>{{ defender.get('AntivirusSignatureAge', 'N/A') }}</strong></div>
+            <div class="kv"><span>RDP active</span><strong>{{ 'Oui' if security.get('rdpEnabled') == true else 'Non' if security.get('rdpEnabled') == false else 'N/A' }}</strong></div>
+            <div class="kv"><span>UAC active</span><strong>{{ 'Oui' if security.get('uacEnabled') == true else 'Non' if security.get('uacEnabled') == false else 'N/A' }}</strong></div>
+            <div class="kv"><span>SMB1</span><strong>{{ security.get('smb1State', 'N/A') }}</strong></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Correctifs Windows collectes</h2>
+          {% if hotfixes %}
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>KB</th>
+                    <th>Description</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for hotfix in hotfixes %}
+                    <tr>
+                      <td>{{ hotfix.get('HotFixID', 'N/A') }}</td>
+                      <td>{{ hotfix.get('Description', 'N/A') }}</td>
+                      <td>
+                        {% set installed_on = hotfix.get('InstalledOn') %}
+                        {% if installed_on is mapping %}
+                          {{ installed_on.get('DateTime') or installed_on.get('value') or 'N/A' }}
+                        {% else %}
+                          {{ installed_on or 'N/A' }}
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="empty">Aucun correctif collecte.</p>
+          {% endif %}
+        </section>
+
+        <section class="panel">
+          <h2>Profils pare-feu</h2>
+          {% if firewall_profiles %}
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Profil</th>
+                    <th>Active</th>
+                    <th>Inbound</th>
+                    <th>Outbound</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for profile in firewall_profiles %}
+                    <tr>
+                      <td>{{ profile.get('Name', 'N/A') }}</td>
+                      <td>{{ profile.get('Enabled', 'N/A') }}</td>
+                      <td>{{ profile.get('DefaultInboundAction', 'N/A') }}</td>
+                      <td>{{ profile.get('DefaultOutboundAction', 'N/A') }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="empty">Aucune information pare-feu collectee.</p>
+          {% endif %}
+        </section>
+      {% endif %}
+
+      <section class="panel">
+        <h2>Inventaire logiciel</h2>
+        {% if report.software_inventory %}
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Hote</th>
+                  <th>Logiciel</th>
+                  <th>Version</th>
+                  <th>Editeur</th>
+                  <th>Date installation</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for software in report.software_inventory %}
+                  <tr>
+                    <td>{{ software.host or 'local' }}</td>
+                    <td>{{ software.name }}</td>
+                    <td>{{ software.version or 'N/A' }}</td>
+                    <td>{{ software.vendor or 'N/A' }}</td>
+                    <td>{{ software.install_date or 'N/A' }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="empty">Aucun logiciel inventorie dans ce rapport.</p>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>

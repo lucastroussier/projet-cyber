@@ -1,0 +1,2 @@
+[console_scripts]
+cyberaudit = cyberaudit.main:main
