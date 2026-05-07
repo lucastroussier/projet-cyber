@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from copy import deepcopy
 from pathlib import Path
 from threading import Lock
@@ -9,7 +10,7 @@ from typing import Any
 import requests
 from flask import Flask, abort, jsonify, render_template, request, send_file
 
-from .config import SCAN_PROFILES, ScanConfig, normalize_scan_profile
+from .config import CVE_PROFILE_LIMITS, SCAN_PROFILES, ScanConfig, normalize_scan_profile
 from .models import AssessmentReport, Finding, HostRecord, SoftwareRecord, now_iso, sort_findings
 from .orchestrator import AssessmentEngine
 from .reporting import ReportWriter
@@ -17,6 +18,10 @@ from .reporting import ReportWriter
 
 AGENT_ENDPOINT = "/api/agent/report"
 AGGREGATE_REPORT_BASENAME = "cyberaudit_agents_consolide"
+
+
+def random_agent_id() -> str:
+    return f"AGENT-{uuid.uuid4().hex[:8].upper()}"
 
 
 def create_collector_app(output_dir: str, token: str) -> Flask:
@@ -28,6 +33,7 @@ def create_collector_app(output_dir: str, token: str) -> Flask:
     app.config["OUTPUT_DIR"] = str(Path(output_dir).resolve())
     app.config["COLLECTOR_TOKEN"] = token
     aggregate_lock = Lock()
+    agent_binary = _find_agent_binary()
 
     @app.get("/")
     def index():
@@ -39,6 +45,10 @@ def create_collector_app(output_dir: str, token: str) -> Flask:
             reports=reports,
             endpoint=AGENT_ENDPOINT,
             aggregate_report=aggregate_report if aggregate_report.exists() else None,
+            collector_url=_request_base_url(),
+            scan_profiles=sorted(SCAN_PROFILES),
+            agent_binary=agent_binary if agent_binary and agent_binary.exists() else None,
+            suggested_agent_id=random_agent_id(),
         )
 
     @app.post(AGENT_ENDPOINT)
@@ -74,7 +84,29 @@ def create_collector_app(output_dir: str, token: str) -> Flask:
             abort(404)
         return send_file(path)
 
+    @app.get("/agent/download")
+    def download_agent():
+        if not agent_binary or not agent_binary.exists():
+            abort(404)
+        return send_file(agent_binary, as_attachment=True, download_name=agent_binary.name)
+
     return app
+
+
+def _request_base_url() -> str:
+    scheme = request.headers.get("X-Forwarded-Proto", request.scheme)
+    return f"{scheme}://{request.host}".rstrip("/")
+
+
+def _find_agent_binary() -> Path | None:
+    candidates = [
+        Path.cwd() / "dist" / "cyberaudit-agent.exe",
+        Path(__file__).resolve().parents[2] / "dist" / "cyberaudit-agent.exe",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+    return candidates[0].resolve()
 
 
 def run_agent(
@@ -84,11 +116,17 @@ def run_agent(
     nvd_api_key: str | None = None,
     agent_id: str | None = None,
     scan_profile: str = "standard",
+    max_cve_products: int | None = None,
+    max_cves_per_product: int | None = None,
 ) -> tuple[AssessmentReport, dict[str, Path], dict[str, Any]]:
     if not token:
         raise ValueError("L'agent requiert un token non vide.")
 
     profile = normalize_scan_profile(scan_profile)
+    for label, value in (("max_cve_products", max_cve_products), ("max_cves_per_product", max_cves_per_product)):
+        if value is not None and value < 0:
+            raise ValueError(f"{label} doit etre positif ou egal a 0.")
+    cve_limits = CVE_PROFILE_LIMITS[profile]
     config = ScanConfig(
         skip_network=True,
         audit_localhost=True,
@@ -97,6 +135,8 @@ def run_agent(
         scan_profile=profile,
         ports=SCAN_PROFILES[profile]["ports"].copy(),
         udp_discovery_ports=SCAN_PROFILES[profile]["udp"].copy(),
+        max_cve_products=cve_limits["max_cve_products"] if max_cve_products is None else max_cve_products,
+        max_cves_per_product=cve_limits["max_cves_per_product"] if max_cves_per_product is None else max_cves_per_product,
     )
     report, paths = AssessmentEngine(config).run()
     metadata = dict(report.metadata)
@@ -105,7 +145,7 @@ def run_agent(
         "scope": "windows_agent",
     }
     metadata["agent"] = {
-        "id": agent_id or _default_agent_id(report),
+        "id": agent_id or random_agent_id(),
         "sent_at": now_iso(),
         "mode": "local_agent",
         "analysis_type": profile,

@@ -7,13 +7,12 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
   <body>
-    testtttttttttttttttttttttttttttttttttttttttttttttttttttttttt
     <main class="shell">
       <section class="hero">
         <div>
           <p class="eyebrow">CyberAudit</p>
-          <h1>Cartographie reseau et audit Windows</h1>
-          <p class="lead">Prototype Python pour decouverte rapide d'hotes, scan multi-services, fingerprinting NAS et analyse defensive de vulnerabilites.</p>
+          <h1>Console d'audit</h1>
+          <p class="lead">Lancez un audit local, preparez les agents Windows et consultez les rapports depuis cette interface.</p>
         </div>
       </section>
 
@@ -95,6 +94,14 @@
                 Cle API NVD
                 <input type="password" name="nvd_api_key" placeholder="Optionnel">
               </label>
+              <label>
+                Logiciels CVE
+                <input type="number" min="0" name="max_cve_products" placeholder="Selon profil, 0 = tous">
+              </label>
+              <label>
+                CVE par logiciel
+                <input type="number" min="1" name="max_cves_per_product" placeholder="Selon profil">
+              </label>
               <label class="checkbox compact">
                 <input type="checkbox" name="audit_localhost" checked>
                 <span>Inclure ce poste Windows</span>
@@ -117,11 +124,104 @@
       </section>
 
       <section class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>Agents Windows</h2>
+            <p>Cette meme interface recoit les rapports agents sur <code>{{ agent_endpoint }}</code>.</p>
+          </div>
+          {% if agent_binary %}
+            <a class="button-link" href="{{ url_for('download_agent') }}">Telecharger l'agent</a>
+          {% endif %}
+        </div>
+
+        {% if is_loopback_request %}
+          <div class="flash error">
+            Vous ouvrez l'interface en local uniquement. Pour recevoir les agents d'un autre PC, relancez avec <code>--host 0.0.0.0</code>, puis ouvrez l'interface avec l'adresse IP de PC1.
+          </div>
+        {% endif %}
+
+        {% if not agent_binary %}
+          <div class="flash error">
+            Agent introuvable dans <code>dist\cyberaudit-agent.exe</code>. Generez-le avec <code>python -m cyberaudit build-agent --output dist</code>.
+          </div>
+        {% endif %}
+
+        <div class="advanced-grid agent-builder">
+          <label>
+            URL collecteur
+            <input type="text" id="collector-url" value="{{ collector_url }}">
+          </label>
+          <label>
+            Token
+            <input type="password" id="agent-token" value="{{ collector_token }}">
+          </label>
+          <label>
+            Agent ID
+            <input type="text" id="agent-id" value="{{ suggested_agent_id }}">
+          </label>
+          <label>
+            Profil
+            <select id="agent-profile">
+              {% for profile in scan_profiles %}
+                <option value="{{ profile }}" {% if profile == 'full' %}selected{% endif %}>{{ profile }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            Logiciels CVE
+            <input type="number" min="0" id="agent-max-products" value="0">
+          </label>
+          <label>
+            CVE par logiciel
+            <input type="number" min="1" id="agent-max-cves" value="10">
+          </label>
+          <label>
+            Cle API NVD
+            <input type="password" id="agent-nvd-key" placeholder="Optionnel">
+          </label>
+        </div>
+
+        <div class="command-box">
+          <code id="agent-command"></code>
+          <button type="button" id="copy-command">Copier</button>
+        </div>
+        <p class="small copy-status" id="copy-status" aria-live="polite"></p>
+        <p class="small">Sur le poste a auditer, copiez l'agent telecharge puis lancez la commande generee. Le rapport consolide sera mis a jour automatiquement ici.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Rapport consolide agents</h2>
+        {% if aggregate_report %}
+          <div class="report-row">
+            <a href="{{ url_for('view_report', filename=aggregate_report.name) }}">{{ aggregate_report.name }}</a>
+            <div class="report-actions">
+              <a class="button-link secondary small-link" href="{{ url_for('download_report_pdf', filename=aggregate_report.name) }}">PDF</a>
+              <form method="post" action="{{ url_for('delete_report') }}" onsubmit="return confirm('Supprimer ce rapport consolide et son JSON associe ?');">
+                <input type="hidden" name="filename" value="{{ aggregate_report.name }}">
+                <button type="submit" class="danger small-button">Supprimer</button>
+              </form>
+            </div>
+          </div>
+        {% else %}
+          <p>Aucun rapport agent recu pour le moment.</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
         <h2>Derniers rapports</h2>
         {% if reports %}
           <ul class="report-list">
             {% for report in reports %}
-              <li><a href="{{ url_for('view_report', filename=report.name) }}">{{ report.name }}</a></li>
+              <li class="report-row">
+                <a href="{{ url_for('view_report', filename=report.name) }}">{{ report.name }}</a>
+                <div class="report-actions">
+                  <a class="button-link secondary small-link" href="{{ url_for('download_report_pdf', filename=report.name) }}">PDF</a>
+                  <form method="post" action="{{ url_for('delete_report') }}" onsubmit="return confirm('Supprimer ce rapport et son JSON associe ?');">
+                    <input type="hidden" name="filename" value="{{ report.name }}">
+                    <button type="submit" class="danger small-button">Supprimer</button>
+                  </form>
+                </div>
+              </li>
             {% endfor %}
           </ul>
         {% else %}
@@ -129,5 +229,95 @@
         {% endif %}
       </section>
     </main>
+    <script>
+      const fields = {
+        collectorUrl: document.getElementById("collector-url"),
+        token: document.getElementById("agent-token"),
+        agentId: document.getElementById("agent-id"),
+        profile: document.getElementById("agent-profile"),
+        maxProducts: document.getElementById("agent-max-products"),
+        maxCves: document.getElementById("agent-max-cves"),
+        nvdKey: document.getElementById("agent-nvd-key"),
+      };
+      const command = document.getElementById("agent-command");
+      const copyButton = document.getElementById("copy-command");
+      const copyStatus = document.getElementById("copy-status");
+      const defaultAgentId = "{{ suggested_agent_id }}";
+
+      function quote(value) {
+        return '"' + String(value || "").replace(/"/g, '\\"') + '"';
+      }
+
+      function buildCommand() {
+        const parts = [
+          ".\\cyberaudit-agent.exe",
+          "--collector",
+          quote(fields.collectorUrl.value.trim()),
+          "--token",
+          quote(fields.token.value.trim() || "secret-audit"),
+          "--agent-id",
+          quote(fields.agentId.value.trim() || defaultAgentId),
+          "--scan-profile",
+          fields.profile.value,
+          "--max-cve-products",
+          fields.maxProducts.value || "0",
+          "--max-cves-per-product",
+          fields.maxCves.value || "10",
+        ];
+        const nvdKey = fields.nvdKey.value.trim();
+        if (nvdKey) {
+          parts.push("--nvd-api-key", quote(nvdKey));
+        }
+        command.textContent = parts.join(" ");
+      }
+
+      async function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        textarea.style.top = "0";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+
+        let copied = false;
+        try {
+          copied = document.execCommand("copy");
+        } finally {
+          document.body.removeChild(textarea);
+        }
+        return copied;
+      }
+
+      Object.values(fields).forEach((field) => field.addEventListener("input", buildCommand));
+      copyButton.addEventListener("click", async () => {
+        const text = command.textContent || "";
+        copyButton.disabled = true;
+        try {
+          const copied = await copyText(text);
+          if (!copied) {
+            throw new Error("copy_failed");
+          }
+          copyButton.textContent = "Copie";
+          copyStatus.textContent = "Commande copiee dans le presse-papiers.";
+        } catch (error) {
+          copyButton.textContent = "Echec";
+          copyStatus.textContent = "Copie automatique impossible. Selectionnez la commande puis utilisez Ctrl+C.";
+        } finally {
+          setTimeout(() => {
+            copyButton.disabled = false;
+            copyButton.textContent = "Copier";
+          }, 1600);
+        }
+      });
+      buildCommand();
+    </script>
   </body>
 </html>

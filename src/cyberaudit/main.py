@@ -29,11 +29,16 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--skip-network", action="store_true", help="Ignorer le scan reseau")
     scan.add_argument("--allow-non-private", action="store_true", help="Autoriser des cibles hors plages privees/loopback")
     scan.add_argument("--nvd-api-key", help="Cle API NVD optionnelle")
+    scan.add_argument("--max-cve-products", type=int, help="Nombre maximum de logiciels locaux a correler avec NVD, 0 = tous")
+    scan.add_argument("--max-cves-per-product", type=int, help="Nombre maximum de CVE conservees par logiciel local")
+    scan.add_argument("--max-remote-service-cves", type=int, help="Nombre maximum de services distants a correler avec NVD")
+    scan.add_argument("--max-remote-cves-per-service", type=int, help="Nombre maximum de CVE conservees par service distant")
 
     serve = subparsers.add_parser("serve", help="Lancer l'interface web")
     serve.add_argument("--host", default="127.0.0.1", help="Adresse d'ecoute")
     serve.add_argument("--port", type=int, default=8080, help="Port d'ecoute")
     serve.add_argument("--output", default="reports", help="Repertoire de sortie des rapports")
+    serve.add_argument("--token", default="secret-audit", help="Token utilise par les agents dans l'interface web")
 
     collector = subparsers.add_parser("collector", help="Recevoir les rapports envoyes par les agents")
     collector.add_argument("--host", default="0.0.0.0", help="Adresse d'ecoute du collecteur")
@@ -42,12 +47,14 @@ def build_parser() -> argparse.ArgumentParser:
     collector.add_argument("--token", required=True, help="Token partage avec les agents")
 
     agent = subparsers.add_parser("agent", help="Auditer localement ce poste puis envoyer le rapport au collecteur")
-    agent.add_argument("--collector", required=True, help="URL du collecteur, ex. http://192.168.1.10:8090")
+    agent.add_argument("--collector", required=True, help="URL de l'interface web PC1, ex. http://192.168.1.10:8080")
     agent.add_argument("--token", required=True, help="Token partage avec le collecteur")
     agent.add_argument("--output", default="reports", help="Repertoire local de sortie")
     agent.add_argument("--agent-id", help="Identifiant lisible de l'agent dans le rapport")
     agent.add_argument("--scan-profile", choices=sorted(SCAN_PROFILES), default="standard", help="Type d'analyse a inscrire dans le rapport agent")
     agent.add_argument("--nvd-api-key", help="Cle API NVD optionnelle")
+    agent.add_argument("--max-cve-products", type=int, help="Nombre maximum de logiciels locaux a correler avec NVD, 0 = tous")
+    agent.add_argument("--max-cves-per-product", type=int, help="Nombre maximum de CVE conservees par logiciel local")
 
     build_agent = subparsers.add_parser("build-agent", help="Generer un executable autonome pour l'agent PC distant")
     build_agent.add_argument("--output", default="dist", help="Repertoire de sortie de l'executable")
@@ -72,7 +79,7 @@ def main() -> None:
         return
 
     if args.command == "serve":
-        app = create_app(default_output=str(Path(args.output)))
+        app = create_app(default_output=str(Path(args.output)), token=args.token)
         app.run(host=args.host, port=args.port, debug=False)
         return
 
@@ -89,6 +96,8 @@ def main() -> None:
             nvd_api_key=args.nvd_api_key,
             agent_id=args.agent_id,
             scan_profile=args.scan_profile,
+            max_cve_products=args.max_cve_products,
+            max_cves_per_product=args.max_cves_per_product,
         )
         print(f"Rapport local HTML : {paths['html']}")
         print(f"Rapport local JSON : {paths['json']}")

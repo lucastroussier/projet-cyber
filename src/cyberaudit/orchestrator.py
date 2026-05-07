@@ -16,7 +16,18 @@ class AssessmentEngine:
     def run(self) -> tuple[AssessmentReport, dict]:
         hosts: list[HostRecord] = []
         findings: list[Finding] = []
-        metadata: dict = {"scope": {}, "notes": []}
+        metadata: dict = {
+            "scope": {},
+            "notes": [],
+            "cve_correlation": {
+                "provider": "NVD",
+                "api_key_configured": bool(self.config.nvd_api_key),
+                "max_cve_products": self.config.max_cve_products,
+                "max_cves_per_product": self.config.max_cves_per_product,
+                "max_remote_service_cves": self.config.max_remote_service_cves,
+                "max_remote_cves_per_service": self.config.max_remote_cves_per_service,
+            },
+        }
         software_inventory = []
 
         if not self.config.skip_network and not self.config.network_cidr:
@@ -54,6 +65,9 @@ class AssessmentEngine:
                 hosts.append(localhost_record)
 
         if software_inventory:
+            metadata["cve_correlation"]["software_inventory_count"] = len(software_inventory)
+            if not self.config.nvd_api_key and (self.config.max_cve_products == 0 or self.config.max_cve_products > 8):
+                metadata["notes"].append("Correlation CVE etendue sans cle API NVD: l'analyse peut etre lente a cause des limites publiques NVD.")
             nvd = NvdClient(api_key=self.config.nvd_api_key)
             findings.extend(
                 nvd.find_product_cves(

@@ -83,6 +83,13 @@ SCAN_PROFILES = {
         "udp": [53, 123, 137, 161, 5353, 5355],
     },
 }
+CVE_PROFILE_LIMITS = {
+    "quick": {"max_cve_products": 5, "max_cves_per_product": 3},
+    "standard": {"max_cve_products": 8, "max_cves_per_product": 4},
+    "windows": {"max_cve_products": 20, "max_cves_per_product": 5},
+    "infrastructure": {"max_cve_products": 12, "max_cves_per_product": 4},
+    "full": {"max_cve_products": 40, "max_cves_per_product": 8},
+}
 
 
 @dataclass(slots=True)
@@ -115,6 +122,7 @@ class ScanConfig:
     def from_args(cls, args) -> "ScanConfig":
         profile = normalize_scan_profile(getattr(args, "scan_profile", "standard"))
         profile_ports = SCAN_PROFILES[profile]["ports"]
+        cve_limits = CVE_PROFILE_LIMITS[profile]
         ports = parse_ports(args.ports) if getattr(args, "ports", None) else profile_ports.copy()
         udp_ports_raw = getattr(args, "udp_discovery_ports", None)
         udp_ports = parse_ports(udp_ports_raw) if udp_ports_raw else SCAN_PROFILES[profile]["udp"].copy()
@@ -137,12 +145,17 @@ class ScanConfig:
             skip_network=bool(getattr(args, "skip_network", False)),
             allow_non_private_targets=bool(getattr(args, "allow_non_private", False)),
             nvd_api_key=getattr(args, "nvd_api_key", None),
+            max_cve_products=_int_or_default(getattr(args, "max_cve_products", None), cve_limits["max_cve_products"]),
+            max_cves_per_product=_int_or_default(getattr(args, "max_cves_per_product", None), cve_limits["max_cves_per_product"]),
+            max_remote_service_cves=_int_or_default(getattr(args, "max_remote_service_cves", None), 12),
+            max_remote_cves_per_service=_int_or_default(getattr(args, "max_remote_cves_per_service", None), 3),
         )
 
     @classmethod
     def from_form(cls, form) -> "ScanConfig":
         profile = normalize_scan_profile(form.get("scan_profile", "standard"))
         profile_ports = SCAN_PROFILES[profile]["ports"]
+        cve_limits = CVE_PROFILE_LIMITS[profile]
         ports_raw = form.get("ports", "")
         ports = parse_ports(ports_raw) if ports_raw else profile_ports.copy()
         udp_ports_raw = form.get("udp_discovery_ports", "")
@@ -165,6 +178,10 @@ class ScanConfig:
             skip_network=form.get("skip_network") == "on",
             allow_non_private_targets=form.get("allow_non_private_targets") == "on",
             nvd_api_key=form.get("nvd_api_key") or None,
+            max_cve_products=_int_or_default(form.get("max_cve_products"), cve_limits["max_cve_products"]),
+            max_cves_per_product=_int_or_default(form.get("max_cves_per_product"), cve_limits["max_cves_per_product"]),
+            max_remote_service_cves=_int_or_default(form.get("max_remote_service_cves"), 12),
+            max_remote_cves_per_service=_int_or_default(form.get("max_remote_cves_per_service"), 3),
         )
 
 
@@ -198,6 +215,15 @@ def normalize_scan_profile(value: str | None) -> str:
         allowed = ", ".join(sorted(SCAN_PROFILES))
         raise ValueError(f"Profil de scan invalide: {profile}. Valeurs autorisees: {allowed}")
     return profile
+
+
+def _int_or_default(value: object, default: int) -> int:
+    if value is None or value == "":
+        return default
+    parsed = int(value)
+    if parsed < 0:
+        raise ValueError("La valeur numerique doit etre positive ou egale a 0.")
+    return parsed
 
 
 def parse_hosts(raw: str | None) -> list[str]:

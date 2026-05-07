@@ -12,13 +12,64 @@
         <div>
           <p class="eyebrow">CyberAudit Collector</p>
           <h1>Reception des agents</h1>
-          <p class="lead">Collecteur actif pour les rapports envoyes par les agents CyberAudit autorises.</p>
+          <p class="lead">Collecteur actif sur <code>{{ collector_url }}</code>.</p>
         </div>
       </section>
 
       <section class="panel">
-        <h2>Point de collecte</h2>
-        <p><code>{{ endpoint }}</code></p>
+        <div class="section-heading">
+          <div>
+            <h2>Preparer un agent</h2>
+            <p>Telechargez l'agent, renseignez les champs, puis utilisez la commande generee sur le poste a auditer.</p>
+          </div>
+          {% if agent_binary %}
+            <a class="button-link" href="{{ url_for('download_agent') }}">Telecharger l'agent</a>
+          {% endif %}
+        </div>
+        {% if not agent_binary %}
+          <div class="flash error">
+            Agent introuvable dans <code>dist\cyberaudit-agent.exe</code>. Generez-le avec <code>python -m cyberaudit build-agent --output dist</code>.
+          </div>
+        {% endif %}
+        <div class="advanced-grid agent-builder">
+          <label>
+            URL collecteur
+            <input type="text" id="collector-url" value="{{ collector_url }}">
+          </label>
+          <label>
+            Token
+            <input type="password" id="agent-token" placeholder="secret-audit">
+          </label>
+          <label>
+            Agent ID
+            <input type="text" id="agent-id" value="{{ suggested_agent_id }}">
+          </label>
+          <label>
+            Profil
+            <select id="agent-profile">
+              {% for profile in scan_profiles %}
+                <option value="{{ profile }}" {% if profile == 'full' %}selected{% endif %}>{{ profile }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            Logiciels CVE
+            <input type="number" min="0" id="agent-max-products" value="0">
+          </label>
+          <label>
+            CVE par logiciel
+            <input type="number" min="1" id="agent-max-cves" value="10">
+          </label>
+          <label>
+            Cle NVD
+            <input type="password" id="agent-nvd-key" placeholder="Optionnel">
+          </label>
+        </div>
+        <div class="command-box">
+          <code id="agent-command"></code>
+          <button type="button" id="copy-command">Copier</button>
+        </div>
+        <p class="small">Sur PC2, vous pouvez aussi double-cliquer sur l'agent : une interface web locale s'ouvre et demande les memes informations.</p>
       </section>
 
       <section class="panel">
@@ -43,5 +94,54 @@
         {% endif %}
       </section>
     </main>
+    <script>
+      const fields = {
+        collectorUrl: document.getElementById("collector-url"),
+        token: document.getElementById("agent-token"),
+        agentId: document.getElementById("agent-id"),
+        profile: document.getElementById("agent-profile"),
+        maxProducts: document.getElementById("agent-max-products"),
+        maxCves: document.getElementById("agent-max-cves"),
+        nvdKey: document.getElementById("agent-nvd-key"),
+      };
+      const command = document.getElementById("agent-command");
+      const copyButton = document.getElementById("copy-command");
+      const defaultAgentId = "{{ suggested_agent_id }}";
+
+      function quote(value) {
+        return '"' + String(value || "").replaceAll('"', '\\"') + '"';
+      }
+
+      function buildCommand() {
+        const parts = [
+          ".\\cyberaudit-agent.exe",
+          "--collector",
+          quote(fields.collectorUrl.value.trim()),
+          "--token",
+          quote(fields.token.value.trim() || "secret-audit"),
+          "--agent-id",
+          quote(fields.agentId.value.trim() || defaultAgentId),
+          "--scan-profile",
+          fields.profile.value,
+          "--max-cve-products",
+          fields.maxProducts.value || "0",
+          "--max-cves-per-product",
+          fields.maxCves.value || "10",
+        ];
+        const nvdKey = fields.nvdKey.value.trim();
+        if (nvdKey) {
+          parts.push("--nvd-api-key", quote(nvdKey));
+        }
+        command.textContent = parts.join(" ");
+      }
+
+      Object.values(fields).forEach((field) => field.addEventListener("input", buildCommand));
+      copyButton.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(command.textContent);
+        copyButton.textContent = "Copie";
+        setTimeout(() => { copyButton.textContent = "Copier"; }, 1400);
+      });
+      buildCommand();
+    </script>
   </body>
 </html>

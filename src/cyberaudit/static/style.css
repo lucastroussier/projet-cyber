@@ -200,12 +200,117 @@ button:hover {
   background: var(--accent-dark);
 }
 
+button.danger {
+  background: var(--error);
+}
+
+button.danger:hover {
+  background: #711827;
+}
+
+.small-button {
+  padding: 8px 10px;
+  font-size: 0.85rem;
+}
+
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  padding: 12px 16px;
+  font-weight: 700;
+  text-decoration: none;
+  background: var(--accent);
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.button-link:hover {
+  background: var(--accent-dark);
+}
+
+.button-link.secondary {
+  background: #eef2f7;
+  color: var(--accent-dark);
+  border: 1px solid var(--line);
+}
+
+.button-link.secondary:hover {
+  background: #dbe7fb;
+}
+
+.small-link {
+  padding: 7px 10px;
+  font-size: 0.85rem;
+}
+
+.command-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: stretch;
+  margin-top: 14px;
+}
+
+.command-box code {
+  display: block;
+  min-height: 46px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: nowrap;
+  background: #f3f6fa;
+}
+
+.small {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.copy-status {
+  min-height: 1.2em;
+  margin: 8px 0 0;
+}
+
 .report-list {
-  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+  padding-left: 0;
+  list-style: none;
 }
 
 .report-list a {
   color: var(--accent-dark);
+}
+
+.report-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.report-row:last-child {
+  border-bottom: 0;
+}
+
+.report-row a {
+  overflow-wrap: anywhere;
+}
+
+.report-row form {
+  margin: 0;
+}
+
+.report-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 }
 
 .flash {
@@ -239,6 +344,18 @@ button:hover {
 
   .launch-row {
     grid-template-columns: 1fr;
+  }
+
+  .command-box {
+    grid-template-columns: 1fr;
+  }
+
+  .report-row {
+    grid-template-columns: 1fr;
+  }
+
+  .report-actions {
+    justify-content: flex-start;
   }
 
   .form-actions {

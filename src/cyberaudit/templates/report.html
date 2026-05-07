@@ -6,54 +6,251 @@
     <title>Rapport CyberAudit</title>
     <style>
       :root {
-        --bg: #f5f1e8;
+        --bg: #f6f7f9;
+        --panel: #ffffff;
         --ink: #1f2933;
-        --panel: #fffdf8;
-        --line: #dfd4c3;
-        --critical: #7a1026;
-        --high: #b34511;
-        --medium: #8d6a10;
-        --low: #2b6a8f;
+        --muted: #5d6770;
+        --accent: #2563eb;
+        --accent-dark: #1d4ed8;
+        --line: #d8dee7;
+        --critical: #8f2130;
+        --high: #b45309;
+        --medium: #8a6d13;
+        --low: #1d5f83;
+        --info: #44505c;
       }
-      body { background: linear-gradient(180deg, #f4efe3, #ede6d7); color: var(--ink); font-family: "Segoe UI", sans-serif; margin: 0; }
-      main { max-width: 1200px; margin: 0 auto; padding: 32px 20px 64px; }
-      .hero, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 24px; box-shadow: 0 10px 30px rgba(90, 64, 35, 0.08); margin-bottom: 20px; }
-      h1, h2, h3 { margin: 0 0 12px; }
-      .hero-grid, .summary, .kv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-      .metric, .kv { border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: #fff; }
-      .metric strong { display: block; font-size: 1.6rem; }
-      .kv span { display: block; font-size: 0.85rem; color: #5a6974; }
-      .kv strong { display: block; margin-top: 6px; font-size: 1rem; }
-      .finding { border-top: 1px solid var(--line); padding: 16px 0; }
-      .finding:first-child, .host:first-child { border-top: none; padding-top: 0; }
-      .sev { display: inline-block; padding: 4px 10px; border-radius: 999px; font-weight: 700; font-size: 0.8rem; }
-      .sev-Critical { background: #f7d9df; color: var(--critical); }
-      .sev-High { background: #fde4d6; color: var(--high); }
-      .sev-Medium { background: #fbf0cf; color: var(--medium); }
-      .sev-Low { background: #dceff9; color: var(--low); }
-      .sev-Info { background: #e7ecef; color: #445; }
-      .host { border-top: 1px solid var(--line); padding: 14px 0; }
-      code { background: #efe7d9; padding: 2px 6px; border-radius: 6px; }
-      ul { margin-top: 8px; }
-      .small, .empty { color: #5a6974; font-size: 0.92rem; }
-      .table-wrap { overflow-x: auto; }
-      table { width: 100%; border-collapse: collapse; background: #fff; }
-      th, td { border-bottom: 1px solid var(--line); text-align: left; padding: 10px 12px; vertical-align: top; }
-      th { background: #f6efe3; }
-      details { margin-top: 10px; }
-      pre { white-space: pre-wrap; word-break: break-word; }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: var(--bg);
+        font-family: "Segoe UI", sans-serif;
+      }
+
+      .shell {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 28px 18px 48px;
+      }
+
+      .hero, .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 24px;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+        margin-bottom: 18px;
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        text-transform: uppercase;
+        letter-spacing: 0;
+        color: var(--accent);
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(2rem, 4vw, 3.4rem);
+        line-height: 0.95;
+      }
+
+      h2 {
+        margin: 0 0 18px;
+        font-size: 1.35rem;
+      }
+
+      h3 {
+        margin: 0 0 10px;
+        font-size: 1.05rem;
+      }
+
+      p {
+        line-height: 1.5;
+      }
+
+      a {
+        color: var(--accent-dark);
+      }
+
+      .lead {
+        color: var(--muted);
+        max-width: 760px;
+      }
+
+      .hero-grid, .summary, .kv-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 14px;
+        margin-top: 18px;
+      }
+
+      .metric, .kv {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 14px;
+        background: #f9fafb;
+      }
+
+      .metric span, .kv span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.86rem;
+        font-weight: 600;
+      }
+
+      .metric strong {
+        display: block;
+        margin-top: 6px;
+        font-size: 1.6rem;
+        line-height: 1;
+      }
+
+      .kv strong {
+        display: block;
+        margin-top: 6px;
+        font-size: 1rem;
+        overflow-wrap: anywhere;
+      }
+
+      .finding, .host {
+        border-top: 1px solid var(--line);
+        padding: 16px 0;
+      }
+
+      .finding:first-child, .host:first-child {
+        border-top: 0;
+        padding-top: 0;
+      }
+
+      .finding:last-child, .host:last-child {
+        padding-bottom: 0;
+      }
+
+      .sev {
+        display: inline-flex;
+        align-items: center;
+        min-height: 26px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-weight: 700;
+        font-size: 0.8rem;
+        white-space: nowrap;
+      }
+
+      .sev-Critical { background: rgba(143, 33, 48, 0.12); color: var(--critical); }
+      .sev-High { background: rgba(180, 83, 9, 0.12); color: var(--high); }
+      .sev-Medium { background: rgba(138, 109, 19, 0.14); color: var(--medium); }
+      .sev-Low { background: rgba(37, 99, 235, 0.12); color: var(--low); }
+      .sev-Info { background: #eef2f7; color: var(--info); border: 1px solid var(--line); }
+
+      code {
+        background: #f3f6fa;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 2px 6px;
+      }
+
+      ul {
+        margin-top: 8px;
+        padding-left: 22px;
+      }
+
+      li + li {
+        margin-top: 6px;
+      }
+
+      .small, .empty {
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ffffff;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #ffffff;
+      }
+
+      th, td {
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        padding: 10px 12px;
+        vertical-align: top;
+      }
+
+      th {
+        background: #f3f6fa;
+        color: var(--ink);
+        font-size: 0.86rem;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      details {
+        margin-top: 10px;
+      }
+
+      summary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        width: fit-content;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #ffffff;
+        color: var(--accent-dark);
+        cursor: pointer;
+        font-weight: 700;
+        padding: 8px 10px;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        margin: 10px 0 0;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #f3f6fa;
+      }
+
+      @media (max-width: 640px) {
+        .hero, .panel {
+          padding: 18px;
+        }
+
+        .shell {
+          padding: 18px 12px 36px;
+        }
+      }
     </style>
   </head>
   <body>
-    <main>
+    <main class="shell">
       {% set collector = report.metadata.get('collector', {}) %}
+      {% set cve_findings = findings | selectattr('category', 'equalto', 'Known Vulnerability') | list %}
       <section class="hero">
+        <p class="eyebrow">CyberAudit</p>
         <h1>Rapport CyberAudit</h1>
-        <p class="small">Genere le {{ report.generated_at }}</p>
+        <p class="lead">Genere le {{ report.generated_at }}</p>
         <div class="hero-grid">
           <div class="metric"><span>Score global</span><strong>{{ score }}/100</strong></div>
           <div class="metric"><span>Hotes detectes</span><strong>{{ report.hosts|length }}</strong></div>
           <div class="metric"><span>Logiciels inventories</span><strong>{{ report.software_inventory|length }}</strong></div>
+          <div class="metric"><span>CVE potentielles</span><strong>{{ cve_findings|length }}</strong></div>
           <div class="metric"><span>Constats</span><strong>{{ findings|length }}</strong></div>
           {% if collector.get('mode') == 'multi_agent' %}
             <div class="metric"><span>Agents recus</span><strong>{{ collector.get('agent_count', 0) }}</strong></div>
@@ -76,7 +273,49 @@
           {% endfor %}
         </div>
         <p class="small">Perimetre reseau : <code>{{ report.network or 'audit local uniquement' }}</code></p>
+        {% set cve_config = report.metadata.get('cve_correlation', {}) %}
+        {% if cve_config %}
+          <p class="small">
+            Correlation CVE : NVD, cle API {{ 'configuree' if cve_config.get('api_key_configured') else 'non configuree' }},
+            logiciels analyses max {{ 'tous' if cve_config.get('max_cve_products') == 0 else cve_config.get('max_cve_products', 'N/A') }}.
+          </p>
+        {% endif %}
       </section>
+
+      {% if cve_findings %}
+        <section class="panel">
+          <h2>CVE potentielles</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>CVE</th>
+                  <th>Severite</th>
+                  <th>Cible</th>
+                  <th>Produit</th>
+                  <th>Version</th>
+                  <th>Score</th>
+                  <th>Methode</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for finding in cve_findings %}
+                  <tr>
+                    <td>{{ finding.evidence.get('cve', 'N/A') }}</td>
+                    <td><span class="sev sev-{{ finding.severity }}">{{ labels.get(finding.severity, finding.severity) }}</span></td>
+                    <td>{{ finding.target }}</td>
+                    <td>{{ finding.evidence.get('software') or finding.evidence.get('product') or 'N/A' }}</td>
+                    <td>{{ finding.evidence.get('version', 'N/A') }}</td>
+                    <td>{{ finding.evidence.get('cvss_score', 'N/A') }}</td>
+                    <td>{{ finding.evidence.get('match_method', 'N/A') }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <p class="small">Les CVE sont des correspondances NVD probables: valider la version exacte et les correctifs installes avant priorisation finale.</p>
+        </section>
+      {% endif %}
 
       {% if collector.get('agents') %}
         <section class="panel">
@@ -245,8 +484,12 @@
             <div class="kv"><span>Antivirus actif</span><strong>{{ 'Oui' if defender.get('AntivirusEnabled') == true else 'Non' if defender.get('AntivirusEnabled') == false else 'N/A' }}</strong></div>
             <div class="kv"><span>Age signatures antivirus</span><strong>{{ defender.get('AntivirusSignatureAge', 'N/A') }}</strong></div>
             <div class="kv"><span>RDP active</span><strong>{{ 'Oui' if security.get('rdpEnabled') == true else 'Non' if security.get('rdpEnabled') == false else 'N/A' }}</strong></div>
+            <div class="kv"><span>NLA RDP</span><strong>{{ 'Oui' if security.get('rdpNetworkLevelAuthenticationEnabled') == true else 'Non' if security.get('rdpNetworkLevelAuthenticationEnabled') == false else 'N/A' }}</strong></div>
             <div class="kv"><span>UAC active</span><strong>{{ 'Oui' if security.get('uacEnabled') == true else 'Non' if security.get('uacEnabled') == false else 'N/A' }}</strong></div>
             <div class="kv"><span>SMB1</span><strong>{{ security.get('smb1State', 'N/A') }}</strong></div>
+            <div class="kv"><span>LLMNR</span><strong>{{ 'Oui' if security.get('llmnrEnabled') == true else 'Non' if security.get('llmnrEnabled') == false else 'N/A' }}</strong></div>
+            <div class="kv"><span>LSASS protege</span><strong>{{ 'Oui' if security.get('lsassRunAsPpl') == true else 'Non' if security.get('lsassRunAsPpl') == false else 'N/A' }}</strong></div>
+            <div class="kv"><span>Secure Boot</span><strong>{{ 'Oui' if security.get('secureBootEnabled') == true else 'Non' if security.get('secureBootEnabled') == false else 'N/A' }}</strong></div>
           </div>
         </section>
 
