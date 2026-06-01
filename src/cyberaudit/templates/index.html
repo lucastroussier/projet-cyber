@@ -92,7 +92,7 @@
               </label>
               <label>
                 Cle API NVD
-                <input type="password" name="nvd_api_key" placeholder="Optionnel">
+                <input type="password" name="nvd_api_key" value="{{ default_nvd_api_key }}" placeholder="Optionnel">
               </label>
               <label>
                 Logiciels CVE
@@ -177,7 +177,7 @@
           </label>
           <label>
             Cle API NVD
-            <input type="password" id="agent-nvd-key" placeholder="Optionnel">
+            <input type="password" id="agent-nvd-key" value="{{ default_nvd_api_key }}" placeholder="Optionnel">
           </label>
         </div>
 
@@ -186,7 +186,7 @@
           <button type="button" id="copy-command">Copier</button>
         </div>
         <p class="small copy-status" id="copy-status" aria-live="polite"></p>
-        <p class="small">Sur le poste a auditer, copiez l'agent telecharge puis lancez la commande generee. Le rapport consolide sera mis a jour automatiquement ici.</p>
+        <p class="small">Sur le poste a auditer, copiez l'agent telecharge puis lancez la commande generee. Un rapport individuel sera conserve pour chaque agent, puis le rapport consolide sera mis a jour automatiquement ici.</p>
       </section>
 
       <section class="panel">

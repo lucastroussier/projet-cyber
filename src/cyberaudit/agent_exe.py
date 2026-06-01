@@ -13,7 +13,7 @@ import requests
 from flask import Flask, redirect, render_template_string, request, url_for
 
 from cyberaudit.agent import random_agent_id, run_agent
-from cyberaudit.config import SCAN_PROFILES, normalize_scan_profile
+from cyberaudit.config import SCAN_PROFILES, load_default_nvd_api_key, normalize_scan_profile
 
 
 AGENT_WEB_TEMPLATE = """
@@ -120,7 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", default="reports", help="Repertoire local de sortie")
     parser.add_argument("--agent-id", help="Identifiant lisible de l'agent dans le rapport")
     parser.add_argument("--scan-profile", choices=sorted(SCAN_PROFILES), default="standard", help="Type d'analyse a inscrire dans le rapport agent")
-    parser.add_argument("--nvd-api-key", help="Cle API NVD optionnelle")
+    parser.add_argument("--nvd-api-key", help="Cle API NVD optionnelle, sinon lecture automatique depuis nvd_api_key.txt ou apikay.txt")
     parser.add_argument("--max-cve-products", type=int, help="Nombre maximum de logiciels locaux a correler avec NVD, 0 = tous")
     parser.add_argument("--max-cves-per-product", type=int, help="Nombre maximum de CVE conservees par logiciel local")
     parser.add_argument("--web", action="store_true", help="Lancer l'interface web locale de l'agent")
@@ -199,7 +199,7 @@ def run_agent_web(args: argparse.Namespace) -> int:
         "token": args.token or "",
         "agent_id": args.agent_id or random_agent_id(),
         "scan_profile": normalize_scan_profile(args.scan_profile or "full"),
-        "nvd_api_key": args.nvd_api_key or "",
+        "nvd_api_key": args.nvd_api_key or load_default_nvd_api_key() or "",
         "max_cve_products": "0" if args.max_cve_products is None else str(args.max_cve_products),
         "max_cves_per_product": "10" if args.max_cves_per_product is None else str(args.max_cves_per_product),
         "output": args.output or "reports",

@@ -63,6 +63,9 @@ class PdfReportWriter:
         summary = summarize_findings(report.findings)
         score = compute_security_score(report.findings)
         findings = sort_findings(report.findings)
+        metadata = report.metadata if isinstance(report.metadata, dict) else {}
+        agent = metadata.get("agent") if isinstance(metadata.get("agent"), dict) else {}
+        collector = metadata.get("collector") if isinstance(metadata.get("collector"), dict) else {}
 
         self._add(lines, "B", 18, "Rapport CyberAudit")
         self._add(lines, "R", 10, f"Genere le: {report.generated_at}")
@@ -75,7 +78,25 @@ class PdfReportWriter:
         self._add(lines, "R", 10, f"Logiciels inventories: {len(report.software_inventory)}")
         self._add(lines, "R", 10, f"Constats: {len(findings)}")
         self._add(lines, "R", 10, "Severites: " + ", ".join(f"{key}={value}" for key, value in summary.items()))
+        if agent.get("id"):
+            self._add(lines, "R", 10, f"Agent: {agent.get('id')} | Type analyse: {agent.get('analysis_type', 'standard')}")
         self._blank(lines)
+
+        agents = collector.get("agents") if isinstance(collector.get("agents"), list) else []
+        if agents:
+            self._add(lines, "B", 13, "Rapports agents")
+            for item in agents:
+                if not isinstance(item, dict):
+                    continue
+                severity = item.get("severity") if isinstance(item.get("severity"), dict) else {}
+                severity_text = ", ".join(f"{key}={severity.get(key, 0)}" for key in SEVERITY_LABELS_FR)
+                label = (
+                    f"{item.get('id', 'N/A')} | score {item.get('score', 'N/A')}/100 | "
+                    f"constats {item.get('findings', 0)} | logiciels {item.get('software', 0)} | "
+                    f"rapport {item.get('report_html', 'N/A')} | {severity_text}"
+                )
+                self._add_wrapped(lines, "R", 9, label, width=105)
+            self._blank(lines)
 
         self._add(lines, "B", 13, "Constats detailles")
         if findings:

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import re
+import unicodedata
 import uuid
 from copy import deepcopy
 from pathlib import Path
@@ -10,14 +13,30 @@ from typing import Any
 import requests
 from flask import Flask, abort, jsonify, render_template, request, send_file
 
-from .config import CVE_PROFILE_LIMITS, SCAN_PROFILES, ScanConfig, normalize_scan_profile
-from .models import AssessmentReport, Finding, HostRecord, SoftwareRecord, now_iso, sort_findings
+from .config import (
+    CVE_PROFILE_LIMITS,
+    SCAN_PROFILES,
+    ScanConfig,
+    load_default_nvd_api_key,
+    normalize_scan_profile,
+)
+from .models import (
+    AssessmentReport,
+    Finding,
+    HostRecord,
+    SoftwareRecord,
+    compute_security_score,
+    now_iso,
+    sort_findings,
+    summarize_findings,
+)
 from .orchestrator import AssessmentEngine
 from .reporting import ReportWriter
 
 
 AGENT_ENDPOINT = "/api/agent/report"
 AGGREGATE_REPORT_BASENAME = "cyberaudit_agents_consolide"
+AGENT_REPORT_BASENAME_PREFIX = "cyberaudit_agent_"
 
 
 def random_agent_id() -> str:
@@ -38,7 +57,13 @@ def create_collector_app(output_dir: str, token: str) -> Flask:
     @app.get("/")
     def index():
         reports_dir = Path(app.config["OUTPUT_DIR"])
-        reports = sorted(reports_dir.glob("cyberaudit_*.html"), reverse=True) if reports_dir.exists() else []
+        reports = []
+        if reports_dir.exists():
+            reports = [
+                report
+                for report in sorted(reports_dir.glob("cyberaudit_*.html"), reverse=True)
+                if report.name != f"{AGGREGATE_REPORT_BASENAME}.html"
+            ]
         aggregate_report = reports_dir / f"{AGGREGATE_REPORT_BASENAME}.html"
         return render_template(
             "collector.html",
@@ -49,6 +74,7 @@ def create_collector_app(output_dir: str, token: str) -> Flask:
             scan_profiles=sorted(SCAN_PROFILES),
             agent_binary=agent_binary if agent_binary and agent_binary.exists() else None,
             suggested_agent_id=random_agent_id(),
+            default_nvd_api_key=load_default_nvd_api_key() or "",
         )
 
     @app.post(AGENT_ENDPOINT)
@@ -72,7 +98,16 @@ def create_collector_app(output_dir: str, token: str) -> Flask:
 
         with aggregate_lock:
             paths = _write_aggregate_report(report, Path(app.config["OUTPUT_DIR"]))
-        return jsonify({"status": "ok", "html": paths["html"].name, "json": paths["json"].name, "mode": "aggregate"})
+        return jsonify(
+            {
+                "status": "ok",
+                "html": paths["html"].name,
+                "json": paths["json"].name,
+                "agent_html": paths["agent_html"].name,
+                "agent_json": paths["agent_json"].name,
+                "mode": "individual_and_aggregate",
+            }
+        )
 
     @app.get("/reports/<path:filename>")
     def view_report(filename: str):
@@ -127,11 +162,12 @@ def run_agent(
         if value is not None and value < 0:
             raise ValueError(f"{label} doit etre positif ou egal a 0.")
     cve_limits = CVE_PROFILE_LIMITS[profile]
+    default_nvd_api_key = nvd_api_key or load_default_nvd_api_key()
     config = ScanConfig(
         skip_network=True,
         audit_localhost=True,
         output_dir=Path(output_dir),
-        nvd_api_key=nvd_api_key,
+        nvd_api_key=default_nvd_api_key,
         scan_profile=profile,
         ports=SCAN_PROFILES[profile]["ports"].copy(),
         udp_discovery_ports=SCAN_PROFILES[profile]["udp"].copy(),
@@ -179,16 +215,55 @@ def _is_authorized(headers, token: str) -> bool:
 
 
 def _write_aggregate_report(incoming: AssessmentReport, output_dir: Path) -> dict[str, Path]:
-    reports = _load_agent_reports(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    writer = ReportWriter()
+
     incoming_id = _agent_id(incoming)
+    reports = _load_agent_reports(output_dir)
     reports = [report for report in reports if _agent_id(report) != incoming_id]
     reports.append(incoming)
+    reports = _deduplicate_agent_reports(reports)
+
+    agent_paths = writer.write(incoming, output_dir, overwrite=True, basename=_agent_report_basename(incoming_id))
+    for report in reports:
+        agent_id = _agent_id(report)
+        if agent_id == incoming_id:
+            continue
+        basename = _agent_report_basename(agent_id)
+        if not (output_dir / f"{basename}.json").exists() or not (output_dir / f"{basename}.html").exists():
+            writer.write(report, output_dir, overwrite=True, basename=basename)
 
     aggregate = _build_aggregate_report(reports)
-    return ReportWriter().write(aggregate, output_dir, overwrite=True, basename=AGGREGATE_REPORT_BASENAME)
+    aggregate_paths = writer.write(aggregate, output_dir, overwrite=True, basename=AGGREGATE_REPORT_BASENAME)
+    return {
+        "json": aggregate_paths["json"],
+        "html": aggregate_paths["html"],
+        "agent_json": agent_paths["json"],
+        "agent_html": agent_paths["html"],
+    }
 
 
 def _load_agent_reports(output_dir: Path) -> list[AssessmentReport]:
+    reports = _load_individual_agent_reports(output_dir)
+    if reports:
+        return _deduplicate_agent_reports(reports)
+    return _load_legacy_aggregate_agent_reports(output_dir)
+
+
+def _load_individual_agent_reports(output_dir: Path) -> list[AssessmentReport]:
+    if not output_dir.exists():
+        return []
+    reports: list[AssessmentReport] = []
+    for report_path in sorted(output_dir.glob(f"{AGENT_REPORT_BASENAME_PREFIX}*.json")):
+        try:
+            payload = json.loads(report_path.read_text(encoding="utf-8"))
+            reports.append(AssessmentReport.from_dict(payload))
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            continue
+    return reports
+
+
+def _load_legacy_aggregate_agent_reports(output_dir: Path) -> list[AssessmentReport]:
     aggregate_json = output_dir / f"{AGGREGATE_REPORT_BASENAME}.json"
     if not aggregate_json.exists():
         return []
@@ -208,6 +283,13 @@ def _load_agent_reports(output_dir: Path) -> list[AssessmentReport]:
         except (TypeError, ValueError):
             continue
     return reports
+
+
+def _deduplicate_agent_reports(reports: list[AssessmentReport]) -> list[AssessmentReport]:
+    by_agent: dict[str, AssessmentReport] = {}
+    for report in reports:
+        by_agent[_agent_id(report)] = report
+    return sorted(by_agent.values(), key=lambda report: _agent_id(report).lower())
 
 
 def _build_aggregate_report(reports: list[AssessmentReport]) -> AssessmentReport:
@@ -239,6 +321,10 @@ def _build_aggregate_report(reports: list[AssessmentReport]) -> AssessmentReport
                 "hosts": len(normalized_hosts),
                 "software": len(normalized_software),
                 "findings": len(report.findings),
+                "score": compute_security_score(report.findings),
+                "severity": summarize_findings(report.findings),
+                "report_html": f"{_agent_report_basename(agent_id)}.html",
+                "report_json": f"{_agent_report_basename(agent_id)}.json",
             }
         )
         if isinstance(localhost_audit, dict) and localhost_audit:
@@ -258,7 +344,7 @@ def _build_aggregate_report(reports: list[AssessmentReport]) -> AssessmentReport
         },
         "agent_audits": agent_audits,
         "agent_reports": [report.to_dict() for report in reports],
-        "notes": ["Rapport consolide a partir des audits envoyes par les agents."],
+        "notes": ["Rapport consolide a partir des rapports individuels envoyes par les agents."],
     }
     return AssessmentReport(
         generated_at=now_iso(),
@@ -330,6 +416,14 @@ def _agent_id(report: AssessmentReport) -> str:
     if metadata.get("collector_remote_addr"):
         return str(metadata["collector_remote_addr"])
     return "agent-local"
+
+
+def _agent_report_basename(agent_id: str) -> str:
+    normalized = unicodedata.normalize("NFKD", str(agent_id)).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", normalized).strip("._-").lower()
+    slug = slug[:48] or "agent"
+    digest = hashlib.sha1(str(agent_id).encode("utf-8")).hexdigest()[:8]
+    return f"{AGENT_REPORT_BASENAME_PREFIX}{slug}_{digest}"
 
 
 def _analysis_type(report: AssessmentReport) -> str:

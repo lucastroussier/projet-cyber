@@ -241,6 +241,7 @@
   <body>
     <main class="shell">
       {% set collector = report.metadata.get('collector', {}) %}
+      {% set agent_meta = report.metadata.get('agent', {}) %}
       {% set cve_findings = findings | selectattr('category', 'equalto', 'Known Vulnerability') | list %}
       <section class="hero">
         <p class="eyebrow">CyberAudit</p>
@@ -252,6 +253,10 @@
           <div class="metric"><span>Logiciels inventories</span><strong>{{ report.software_inventory|length }}</strong></div>
           <div class="metric"><span>CVE potentielles</span><strong>{{ cve_findings|length }}</strong></div>
           <div class="metric"><span>Constats</span><strong>{{ findings|length }}</strong></div>
+          {% if agent_meta.get('id') and collector.get('mode') != 'multi_agent' %}
+            <div class="metric"><span>Agent</span><strong>{{ agent_meta.get('id') }}</strong></div>
+            <div class="metric"><span>Type analyse</span><strong>{{ agent_meta.get('analysis_type', 'standard') }}</strong></div>
+          {% endif %}
           {% if collector.get('mode') == 'multi_agent' %}
             <div class="metric"><span>Agents recus</span><strong>{{ collector.get('agent_count', 0) }}</strong></div>
             <div class="metric"><span>Type analyse</span><strong>{{ collector.get('analysis_type', 'N/A') }}</strong></div>
@@ -325,8 +330,11 @@
               <thead>
                 <tr>
                   <th>Agent</th>
+                  <th>Rapport</th>
                   <th>Type analyse</th>
                   <th>Reception</th>
+                  <th>Score</th>
+                  <th>Severites</th>
                   <th>Hotes</th>
                   <th>Constats</th>
                   <th>Logiciels</th>
@@ -334,10 +342,26 @@
               </thead>
               <tbody>
                 {% for agent in collector.get('agents', []) %}
+                  {% set agent_severity = agent.get('severity', {}) %}
                   <tr>
                     <td>{{ agent.get('id', 'N/A') }}</td>
+                    <td>
+                      {% if agent.get('report_html') %}
+                        <a href="{{ agent.get('report_html') }}">Individuel</a>
+                      {% else %}
+                        N/A
+                      {% endif %}
+                    </td>
                     <td>{{ agent.get('analysis_type', 'standard') }}</td>
                     <td>{{ agent.get('received_at') or agent.get('sent_at') or 'N/A' }}</td>
+                    <td>{{ agent.get('score', 'N/A') }}</td>
+                    <td>
+                      Crit {{ agent_severity.get('Critical', 0) }} /
+                      Eleve {{ agent_severity.get('High', 0) }} /
+                      Moyen {{ agent_severity.get('Medium', 0) }} /
+                      Bas {{ agent_severity.get('Low', 0) }} /
+                      Info {{ agent_severity.get('Info', 0) }}
+                    </td>
                     <td>{{ agent.get('hosts', 0) }}</td>
                     <td>{{ agent.get('findings', 0) }}</td>
                     <td>{{ agent.get('software', 0) }}</td>

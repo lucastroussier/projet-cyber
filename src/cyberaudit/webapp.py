@@ -8,7 +8,7 @@ from threading import Lock
 from flask import Flask, abort, flash, jsonify, redirect, render_template, request, send_file, session, url_for
 
 from .agent import AGENT_ENDPOINT, AGGREGATE_REPORT_BASENAME, _find_agent_binary, _is_authorized, _write_aggregate_report, random_agent_id
-from .config import DEFAULT_PORTS, SCAN_PROFILES, ScanConfig
+from .config import DEFAULT_PORTS, SCAN_PROFILES, ScanConfig, load_default_nvd_api_key
 from .models import AssessmentReport, now_iso
 from .orchestrator import AssessmentEngine
 from .reporting import PdfReportWriter
@@ -42,6 +42,7 @@ def create_app(default_output: str = "reports", token: str = "secret-audit") -> 
             default_ports=",".join(str(port) for port in DEFAULT_PORTS),
             scan_profiles=sorted(SCAN_PROFILES),
             default_udp_ports=",".join(str(port) for port in SCAN_PROFILES["standard"]["udp"]),
+            default_nvd_api_key=load_default_nvd_api_key() or "",
             collector_url=_base_url(),
             collector_token=app.config["COLLECTOR_TOKEN"],
             agent_endpoint=AGENT_ENDPOINT,
@@ -120,7 +121,16 @@ def create_app(default_output: str = "reports", token: str = "secret-audit") -> 
 
         with aggregate_lock:
             paths = _write_aggregate_report(report, Path(app.config["DEFAULT_OUTPUT_DIR"]))
-        return jsonify({"status": "ok", "html": paths["html"].name, "json": paths["json"].name, "mode": "aggregate"})
+        return jsonify(
+            {
+                "status": "ok",
+                "html": paths["html"].name,
+                "json": paths["json"].name,
+                "agent_html": paths["agent_html"].name,
+                "agent_json": paths["agent_json"].name,
+                "mode": "individual_and_aggregate",
+            }
+        )
 
     @app.get("/agent/download")
     def download_agent():

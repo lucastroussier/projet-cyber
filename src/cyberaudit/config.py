@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -90,6 +91,8 @@ CVE_PROFILE_LIMITS = {
     "infrastructure": {"max_cve_products": 12, "max_cves_per_product": 4},
     "full": {"max_cve_products": 40, "max_cves_per_product": 8},
 }
+NVD_API_KEY_FILE_ENV = "CYBERAUDIT_NVD_API_KEY_FILE"
+DEFAULT_NVD_API_KEY_FILES = ("nvd_api_key.txt", "apikay.txt")
 
 
 @dataclass(slots=True)
@@ -144,7 +147,7 @@ class ScanConfig:
             audit_localhost=bool(getattr(args, "audit_localhost", False)),
             skip_network=bool(getattr(args, "skip_network", False)),
             allow_non_private_targets=bool(getattr(args, "allow_non_private", False)),
-            nvd_api_key=getattr(args, "nvd_api_key", None),
+            nvd_api_key=getattr(args, "nvd_api_key", None) or load_default_nvd_api_key(),
             max_cve_products=_int_or_default(getattr(args, "max_cve_products", None), cve_limits["max_cve_products"]),
             max_cves_per_product=_int_or_default(getattr(args, "max_cves_per_product", None), cve_limits["max_cves_per_product"]),
             max_remote_service_cves=_int_or_default(getattr(args, "max_remote_service_cves", None), 12),
@@ -177,7 +180,7 @@ class ScanConfig:
             audit_localhost=form.get("audit_localhost") == "on",
             skip_network=form.get("skip_network") == "on",
             allow_non_private_targets=form.get("allow_non_private_targets") == "on",
-            nvd_api_key=form.get("nvd_api_key") or None,
+            nvd_api_key=form.get("nvd_api_key") or load_default_nvd_api_key(),
             max_cve_products=_int_or_default(form.get("max_cve_products"), cve_limits["max_cve_products"]),
             max_cves_per_product=_int_or_default(form.get("max_cves_per_product"), cve_limits["max_cves_per_product"]),
             max_remote_service_cves=_int_or_default(form.get("max_remote_service_cves"), 12),
@@ -215,6 +218,44 @@ def normalize_scan_profile(value: str | None) -> str:
         allowed = ", ".join(sorted(SCAN_PROFILES))
         raise ValueError(f"Profil de scan invalide: {profile}. Valeurs autorisees: {allowed}")
     return profile
+
+
+def load_default_nvd_api_key() -> str | None:
+    for path in _nvd_api_key_file_candidates():
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for line in raw.splitlines():
+            key = line.strip()
+            if key and not key.startswith("#"):
+                return key
+    return None
+
+
+def _nvd_api_key_file_candidates() -> list[Path]:
+    candidates: list[Path] = []
+    configured = os.environ.get(NVD_API_KEY_FILE_ENV)
+    if configured:
+        candidates.append(Path(configured).expanduser())
+
+    roots = [Path.cwd(), Path(__file__).resolve().parents[2]]
+    for root in roots:
+        for filename in DEFAULT_NVD_API_KEY_FILES:
+            candidates.append(root / filename)
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        try:
+            key = str(candidate.resolve())
+        except OSError:
+            key = str(candidate.absolute())
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(candidate)
+    return unique
 
 
 def _int_or_default(value: object, default: int) -> int:

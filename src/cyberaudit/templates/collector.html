@@ -62,14 +62,14 @@
           </label>
           <label>
             Cle NVD
-            <input type="password" id="agent-nvd-key" placeholder="Optionnel">
+            <input type="password" id="agent-nvd-key" value="{{ default_nvd_api_key }}" placeholder="Optionnel">
           </label>
         </div>
         <div class="command-box">
           <code id="agent-command"></code>
           <button type="button" id="copy-command">Copier</button>
         </div>
-        <p class="small">Sur PC2, vous pouvez aussi double-cliquer sur l'agent : une interface web locale s'ouvre et demande les memes informations.</p>
+        <p class="small">Sur PC2, vous pouvez aussi double-cliquer sur l'agent : une interface web locale s'ouvre et demande les memes informations. Chaque envoi cree un rapport individuel, puis le rapport consolide est regenere.</p>
       </section>
 
       <section class="panel">
@@ -82,7 +82,7 @@
       </section>
 
       <section class="panel">
-        <h2>Fichiers de rapports</h2>
+        <h2>Rapports individuels</h2>
         {% if reports %}
           <ul class="report-list">
             {% for report in reports %}

@@ -139,7 +139,7 @@ Dans la section `Agents Windows` de l'interface web :
 2. copiez l'executable sur le poste a auditer ;
 3. gardez l'`Agent ID` aleatoire propose ou remplacez-le par un nom lisible ;
 4. choisissez le profil ;
-5. ajoutez une cle API NVD si disponible ;
+5. laissez la cle API NVD pre-remplie si elle est stockee dans `nvd_api_key.txt`, ou ajoutez-la manuellement ;
 6. copiez la commande generee.
 
 Exemple de commande generee :
@@ -207,7 +207,7 @@ Options utiles :
 - `--scan-profile quick|standard|windows|infrastructure|full`
 - `--max-cve-products 0` pour tenter la correlation NVD sur tous les logiciels inventories
 - `--max-cves-per-product 10` pour conserver plus de CVE par logiciel
-- `--nvd-api-key` pour utiliser une cle API NVD
+- `--nvd-api-key` pour forcer une cle API NVD precise ; sinon CyberAudit lit automatiquement `nvd_api_key.txt` ou `apikay.txt`
 - `--allow-non-private` pour autoriser explicitement les cibles hors plages privees
 - `--disable-udp-discovery` pour desactiver la decouverte UDP
 
@@ -232,18 +232,30 @@ reports\cyberaudit_agents_consolide.html
 reports\cyberaudit_agents_consolide.json
 ```
 
+Chaque rapport recu d'un agent est aussi conserve individuellement sur le collecteur :
+
+```text
+reports\cyberaudit_agent_<agent-id>_<hash>.html
+reports\cyberaudit_agent_<agent-id>_<hash>.json
+```
+
+Le rapport consolide est regenere apres l'ecriture du rapport individuel et resume les rapports de tous les agents recus.
+
 Depuis l'interface web, le bouton `Supprimer` efface le HTML selectionne et le JSON associe.
 
 ## CVE et cle API NVD
 
 La correlation CVE utilise l'API NVD 2.0. Elle reste heuristique : elle aide a prioriser les verifications, mais ne remplace pas la validation humaine de la version exacte, des correctifs installes et du contexte d'exposition.
 
-Pour eviter de saisir la cle dans l'historique de commande, vous pouvez la stocker dans un fichier local ignore par Git, par exemple `apikay.txt` :
+Pour eviter de saisir la cle a chaque analyse, stockez-la dans un fichier local ignore par Git :
 
 ```powershell
-$NVD_KEY = (Get-Content .\apikay.txt -Raw).Trim()
-python -m cyberaudit scan --skip-network --audit-localhost --scan-profile full --max-cve-products 0 --max-cves-per-product 10 --nvd-api-key $NVD_KEY --output reports
+Set-Content -Path .\nvd_api_key.txt -Value "VOTRE_CLE_NVD"
 ```
+
+CyberAudit lit automatiquement `nvd_api_key.txt`, puis `apikay.txt` pour compatibilite. Cela s'applique aux audits CLI, a l'interface web et a la commande agent generee dans la section `Agents Windows`.
+
+Si vous voulez placer le fichier ailleurs, definissez `CYBERAUDIT_NVD_API_KEY_FILE` avec le chemin du fichier avant de lancer CyberAudit.
 
 Ne publiez jamais une vraie cle API dans GitHub, dans une issue ou dans un rapport partage publiquement.
 

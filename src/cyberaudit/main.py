@@ -28,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--audit-localhost", action="store_true", dest="audit_localhost", help="Auditer le poste local Windows")
     scan.add_argument("--skip-network", action="store_true", help="Ignorer le scan reseau")
     scan.add_argument("--allow-non-private", action="store_true", help="Autoriser des cibles hors plages privees/loopback")
-    scan.add_argument("--nvd-api-key", help="Cle API NVD optionnelle")
+    scan.add_argument("--nvd-api-key", help="Cle API NVD optionnelle, sinon lecture automatique depuis nvd_api_key.txt ou apikay.txt")
     scan.add_argument("--max-cve-products", type=int, help="Nombre maximum de logiciels locaux a correler avec NVD, 0 = tous")
     scan.add_argument("--max-cves-per-product", type=int, help="Nombre maximum de CVE conservees par logiciel local")
     scan.add_argument("--max-remote-service-cves", type=int, help="Nombre maximum de services distants a correler avec NVD")
@@ -52,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     agent.add_argument("--output", default="reports", help="Repertoire local de sortie")
     agent.add_argument("--agent-id", help="Identifiant lisible de l'agent dans le rapport")
     agent.add_argument("--scan-profile", choices=sorted(SCAN_PROFILES), default="standard", help="Type d'analyse a inscrire dans le rapport agent")
-    agent.add_argument("--nvd-api-key", help="Cle API NVD optionnelle")
+    agent.add_argument("--nvd-api-key", help="Cle API NVD optionnelle, sinon lecture automatique depuis nvd_api_key.txt ou apikay.txt")
     agent.add_argument("--max-cve-products", type=int, help="Nombre maximum de logiciels locaux a correler avec NVD, 0 = tous")
     agent.add_argument("--max-cves-per-product", type=int, help="Nombre maximum de CVE conservees par logiciel local")
 
